@@ -17,7 +17,7 @@ Just sends a command to the server, which makes it display all information about
 #### assign:
 Each devices must have a name assigned to it, just for the sake of aesthetics.
 #### function:
-This feature does not have to be used, for example a pair of lights that you want to start flashing, instead of telling the server to send a bunch of requests to the device. You can have it do stuff internally. All of this is handled by the function_handler.h file.
+This feature does not have to be used. For example: a pair of lights that you want to start flashing, instead of telling the server to send a bunch of requests to the device. You can have the device do stuff internally. All of this is handled by the "function_handler.h" file.
 
 ## Example 
 ```c++
