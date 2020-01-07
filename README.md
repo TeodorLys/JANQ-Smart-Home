@@ -13,7 +13,7 @@ OH DEAR GOD, PLEASE DONT! the entire system is soooo janky, I mean its even call
 # LoT Device Features
 All devices has a few features integrated into the library. 
 #### GET:
-Just sends a display command to the server, which makes it display all information about the device i.e. ip, mac etc.
+Just sends a command to the server, which makes it display all information about the device i.e. ip, mac etc.
 #### assign:
 Each devices must have a name assigned to it, just for the sake of aesthetics.
 #### function:
