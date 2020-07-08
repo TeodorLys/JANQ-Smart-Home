@@ -28,11 +28,11 @@ void loop() {
       else if(i_speed == 0)
         analogWrite(3, 0);
       else {
-        api.push_message_to_server("execution out of bounds!", 202);
+        api.push_message_to_server("execution out of bounds!", STATUS_FAILED);
         return;
        }
       String status_repo = "execute function -> " + String(i_speed == 1 ? "ON" : "OFF");
-      api.push_message_to_server(status_repo, 200);
+      api.push_message_to_server(status_repo, STATUS_SUCCESS);
       last_i_speed = i_speed;
   }
 }
