@@ -4,6 +4,6 @@
 
 int main(){
 	sleep(1);
-	execv("/home/pi/udp_janq_command/main", 0);
+	execv("/home/pi/udp_janq_command/src/main", 0);
 	_exit(0);
 }

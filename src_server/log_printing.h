@@ -219,7 +219,7 @@ void color_parse(std::string format, int index){
 			color = DEFAULT;
 		break;
 		default:
-			printf("could not parse formatting... exiting!\n");
+			printf("[LOG_ERROR] Could not parse the color... exiting!\n");
 			exit(-1);
 		break;
 	}
