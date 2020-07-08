@@ -12,6 +12,15 @@ TODO:
 Make this apart of the net_connection class.
 */
 
+
+struct _return {
+  bool assign = false;
+  bool request_listener = false;
+  bool GET = false;
+  bool success = false;
+  String err_message = "";
+};
+
 class net_parser{
 private:
 
@@ -26,72 +35,86 @@ struct parameter{
   }
 };
 
+struct listener{
+  String name;
+  String state;
+  listener(String _name, String _state) : name(_name), state(_state) {}
+};
+
 String _header;
 String assigned_name = "";
 std::vector<parameter> params; // The current request parameters
 std::vector<parameter> default_params; // The pre defined paramters
+std::vector<listener> listeners;
 #ifdef ESP32
 Preferences preference;
 #endif
 public:
-  net_parser(bool _init = true) {
-    if(_init){
-      #ifdef ESP8266
-      EEPROM.begin(20);
-      String compare = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_";
-      for(int a = 0; a < 20; a++){
-        char c;
-        EEPROM.get(a, c);
-        if(compare.indexOf(c) >= 0)
-          assigned_name += c;
+  net_parser() {
+    /*
+    These parameters are lib defaults, and are used for janq server stuff.
+    *NOTE* These are NOT included in the request form! SEE: "get_formatted_request_form" function
+    */
+    default_params.push_back(parameter("assign", 0));
+    default_params.push_back(parameter("GET", 0));
+    default_params.push_back(parameter("request_listener", 0));
+  }
+
+  void register_local_listener(String name, String default_state = "NULL"){
+    listeners.push_back(listener(name, default_state));
+  }
+
+  void change_local_listener(String name, String state, void(*u)(String, int)){
+    for(int a = 0; a < (int)listeners.size(); a++){
+      if(listeners[a].name == name){
+        listeners[a].state = state;
+        u(_format_request_listener(), STATUS_TO_HOSTS);
+        break;
       }
-      #else
-      preference.begin("name", false);
-      assigned_name = preference.getString("assigned", "UNASSIGNED");
-      preference.end();
-      #endif
-      default_params.push_back(parameter("assign", 0));
-      default_params.push_back(parameter("GET", 0));
     }
   }
 
-  void _remote_init(){
-    #ifdef ESP8266
-      EEPROM.begin(20);
-      String compare = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_";
-      for(int a = 0; a < 20; a++){
-        char c;
-        EEPROM.get(a, c);
-        if(compare.indexOf(c) >= 0)
-          assigned_name += c;
-      }
-      #else
-      preference.begin("name", false);
-      assigned_name = preference.getString("assigned", "UNASSIGNED");
-      preference.end();
-      #endif
+  void _remote_init() {
       default_params.push_back(parameter("assign", 0));
       default_params.push_back(parameter("GET", 0));
+      default_params.push_back(parameter("request_listener", 0));
   }
 
   void add_parameter(String p, int v = 0){
     default_params.push_back(parameter(p, v));
   }
 
-  int parse_header(String header, void(*u)(String, int) = nullptr){
-    if(header.indexOf("actionpage.php?") <= 0)
-      return -1;
+  void clear_buffer(){
+    for(int a = 0; a < (int)params.size(); a++){
+      params[a]._var_name = "";
+      params[a]._internal_value = "";
+      params[a]._value = 0;
+    }
+    params.clear();
+  }
+
+  _return parse_header(String header, void(*u)(String, int) = nullptr){
+    _return ret;
+    if(header.indexOf("actionpage.php?") <= 0){
+      ret.err_message = "no actionpage.php?";
+      return ret;
+    }
+
     params.clear();
     _header = header;
     if(_header.indexOf("?") > 0){
       _header.remove(0, _header.indexOf("?") + 1);
-      for(int a = 0; a < default_params.size(); a++){
-        extract_parameter_call();
+      for(int a = 0; a < (int)default_params.size(); a++){
+        _return __r = extract_parameter_call();
+        if(!__r.success){
+          ret.err_message = "extract call failed: " + __r.err_message;
+          return ret;
+        }
         _header.remove(0, _header.indexOf("&") + 1);
       }
     }
 
-    int ret_val = -1;
+    ret.success = true;
 
     /* If the request is a name change */
     String name = get_string_parameter("assign");
@@ -103,37 +126,23 @@ public:
     if(get_parameter("GET") != -1){
       if(u != nullptr)
         u("WHAT!", STATUS_DEVICE_INFO);
-      ret_val = -2;
+      ret.GET = true;
+    }else if(get_parameter("request_listener") != -1){
+      if(u != nullptr)
+        u(_format_request_listener(), STATUS_TO_HOSTS);
+      ret.request_listener = true;
     }
-    /*
-    TODO: Move the name (re)assignment into a function.
-    */
+
     if(name != "" && name != assigned_name){
-      #ifdef ESP8266
-      for(int a = 0; a < 20; a++){
-        if(a < name.length())
-          EEPROM.put(a, name[a]);
-        else 
-          EEPROM.put(a, 0);
-      }
-      EEPROM.commit();
-      #else
-      preference.begin("name", false);
-      preference.putString("assigned", name);
-      preference.end();
-      #endif
-      ret_val = -2;
-      if(u != nullptr){
-        String tosend = "NAME CHANGE REQUESTED, " + assigned_name;
-        tosend += " -> " + name;
-        u(tosend, STATUS_SUCCESS);
-      }
+      if(u != nullptr)
+        u("NAME CHANGE REQUESTED", STATUS_SUCCESS);
       assigned_name = name;
+      ret.assign = true;
     }else if(name == assigned_name){
       if(u != nullptr)
         u("NAME CHANGE REQUESTED, that is the same name...", STATUS_FAILED);
     }
-    return ret_val;
+    return ret;
   }
 
   /*
@@ -141,35 +150,35 @@ public:
   like a function call or a name assign, it will be returned as a 0.
   if a parameter isnt included in the request this will return -1;
   */
-   int get_parameter(String name) {
-     for(parameter p : params){
-       if(name == p._var_name){
-         return p._value;
-       }
-     }
-     return -1;
-   }
+  int get_parameter(String name) {
+    for(parameter p : params){
+      if(name == p._var_name){
+        return p._value;
+      }
+    }
+    return -1;
+  }
 
-   std::vector<int> get_parameter_array(String name) {
-     for(parameter p : params){
-       if(name == p._var_name){
-         return p.param_array;
-       }
-     }
-     return std::vector<int>(0);
-   }
+  std::vector<int> get_parameter_array(String name) {
+    for(parameter p : params){
+      if(name == p._var_name){
+        return p.param_array;
+      }
+    }
+    return std::vector<int>(0);
+  }
 
-   String get_formatted_request_form() {
-     String buff = "/actionpage.php?";
-     for(parameter s : default_params){
-       if(s._var_name != "assign" && s._var_name != "GET")
-       buff += s._var_name + "=$&";
-     }
-     return buff;
-   }
+  String get_formatted_request_form() {
+    String buff = "/actionpage.php?";
+    for(parameter s : default_params){
+      if(s._var_name != "assign" && s._var_name != "GET" && s._var_name != "request_listener")
+      buff += s._var_name + "=$&";
+    }
+    return buff;
+  }
 
   void set_default_parameter(String name, int v){
-    for(int a = 0; a < default_params.size(); a++){
+    for(int a = 0; a < (int)default_params.size(); a++){
       if(default_params[a]._var_name == name){
         default_params[a]._value = v;
         return;
@@ -177,9 +186,12 @@ public:
     }
   }
 
-  //Hmm... why is this a pointer?
-  String *get_assigned_name() {
-    return &assigned_name;
+  void set_assigned_name(String name){
+    assigned_name = name;
+  }
+
+  String get_assigned_name() {
+    return assigned_name;
   }
   /*
   Return a specified parameter in string format. Some 
@@ -192,33 +204,45 @@ public:
        }
      }
      return "";
-   }
+  }
+
+  bool get_parameter_exists(String name) {
+     for(parameter p : params){
+       if(name == p._var_name){
+         return true;
+       }
+     }
+     return false;
+  }
+
    
 private:
-  void extract_parameter_call() {
+  _return extract_parameter_call() {
+    _return ret;
     String s = _header;
     std::vector<int> param_array;
     /*
     Last parameter?
     */
 		if (s.indexOf("&") > 0) {
-			s.remove(s.indexOf("&"), s.length());
+			s.remove(s.indexOf("&"));
 		}
 		String name = s;
 		if (s.indexOf("=") > 0) {
-      name.remove(name.indexOf("="), name.length());
+      name.remove(name.indexOf("="));
 
       s.remove(0, s.indexOf("=") + 1);
       if(s == ""){
         s = "0";
+      } 
       /*
       The array request function was created for a TV remote, basically so you can
       send a timing array
       */
-      } else if(s.indexOf("A") >= 0){
-        s.remove(s.indexOf(" "), s.length());
+      else if(s.indexOf("A") >= 0){
+        s.remove(s.indexOf(" "));
         String buff;
-        for(int a = 1; a < s.length() - 1; a++){
+        for(int a = 1; a < (int)s.length() - 1; a++){
           if(s[a] != '+'){
             buff += s[a];
           }else if(s[a] == '+'){
@@ -234,33 +258,49 @@ private:
       try to get a value from it by looking for a int, and/or by looking for the 
       defined parameter and what is after it. 
       */
-			try_without_equals(name, s);
+			if(try_without_equals(name, s)){
+        ret.err_message = "try without equals failed";
+        return ret;
+      }
 		}
 
     if(name != ""){
       for(parameter ps : default_params){
         if(ps._var_name == name){
           params.push_back(parameter(name, s.toInt(), param_array, s));
+          ret.success = true;
+          return ret;
         }
       }
+      ret.err_message = "Parameter was not found: " + name;
+      return ret;
     }
+    return ret;
   }
 
-  void try_without_equals(String &name, String &value) {
+  String _format_request_listener(){
+    String buffer;
+    for(int a = 0; a < (int)listeners.size(); a++){
+      buffer += listeners[a].name + ":" + listeners[a].state + "-";
+    }
+    return buffer;
+  }
+
+  bool try_without_equals(String &name, String &value) {
 		String name_buff;
 		String value_buff;
-		for (char c : name) {
-			if (char_is_num(c)) {
-				value_buff += c;
-			}
-			else {
-				name_buff += c;
-			}
-		}
-		name = name_buff;
-		if (value_buff.length() <= 0)
-			value_buff = "0";
-		value = value_buff;
+    for(parameter p : default_params){
+      if(name.indexOf(p._var_name) >= 0){
+        name_buff = name;
+        name_buff.remove(name_buff.indexOf(p._var_name) + p._var_name.length()); 
+        value_buff = name;
+        value_buff.remove(0, name_buff.indexOf(p._var_name) + p._var_name.length());
+        name = name_buff;
+        value = value_buff;
+        return true;
+      }
+    }
+    return false;
 	}
 
 	bool char_is_num(char c) {
