@@ -26,13 +26,13 @@ This feature does not have to be used. For example: a pair of lights that you wa
 //until the device receives a new request
  
  net_api api;
- function_handler <3>loop;  // 3 meaning how many parameters the call will have
-                            // in this case "loop{ON:OFF:timer}"
+ function_handler <1>loop;  // 1 meaning how many parameters the call will have
+                            // in this case "loop{timer}"
  void setup(){
    function.register_function([]{
      static bool b = false;
      static long timer = millis();
-     if(millis() - timer >= loop.p[2]) {
+     if(millis() - timer >= loop.p[0]) {
        if(b)
          net.send_status_to_server("ON");
        else
