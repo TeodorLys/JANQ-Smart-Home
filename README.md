@@ -28,8 +28,8 @@ This feature does not have to be used. For example: a pair of lights that you wa
  net_api api;
  function_handler <1>loop;  // 1 meaning how many parameters the call will have
                             // in this case "loop{timer}"
- void setup(){
-   function.register_function([]{
+ void setup() {
+   function.register_function([] {
      static bool b = false;
      static long timer = millis();
      if(millis() - timer >= loop.p[0]) {
@@ -51,20 +51,19 @@ This feature does not have to be used. For example: a pair of lights that you wa
  }
  
  void loop() {
-   if(loop.active()){
+   if(loop.active()) {
      loop.call_function();
    }
    
    if(api.got_request()){
-     if(api.parameter("function", GET_STRING).length() > 2){
+     if(api.parameter("function", GET_STRING).length() > 2) {
        loop.parse_function_call(api.parameter("function", GET_STRING));
        loop.active(true);
      }else {
        loop.active(false);
      }
      
-     // If "Servo" wasnt requesed this will return -1
-     if(parser.parameter("Servo", GET_EXISTANCE)){
+     if(parser.parameter("Servo", GET_EXISTANCE)) {
        api.push_message_to_server()("DID A THING -> " + String(parser.get_parameter("Servo")));
      }
    }
