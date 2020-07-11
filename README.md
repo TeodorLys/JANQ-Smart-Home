@@ -62,7 +62,7 @@ This feature does not have to be used. For example: a pair of lights that you wa
      }else {
        loop.active(false);
      }
-     
+     // If parameter "Servo" were in the request
      if(parser.parameter("Servo", GET_EXISTANCE)) {
        api.push_message_to_server()("DID A THING -> " + String(parser.get_parameter("Servo")));
      }
