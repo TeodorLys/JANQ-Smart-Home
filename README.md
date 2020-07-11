@@ -22,7 +22,7 @@ This feature does not have to be used. For example: a pair of lights that you wa
 ## Example 
 ```c++
 
-//This example will start sending the phrase ON / OFF to the server in a loop 
+//This example will start sending the words "ON" or "OFF" to the server in a loop 
 //until the device receives a new request
  
  net_api api;
